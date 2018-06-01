@@ -7,21 +7,31 @@
 
 // TODO give the chance to choose the penetrance model.
 
+// TODO implement covariates, at least sex and perhaps population.
+
 #ifndef GWAS_H_
 #define GWAS_H_
+
+#include <stdbool.h>
+#include <stdio.h>
+
+#define FIELDLEN 30
 
 /* data structures
  *******************/
 
 typedef struct Gwas_freq {
-	struct alleles[2] {
+	struct Alleles {
 		char seq;
+		unsigned int count;
 		float freq;
-	};
-	struct genotypes[3] {
+	} alleles[2];
+	struct Genotypes {
 		char seq[3]; // i.e. 0/1, 1/1 or 0|0 (if phased, like in VCFs)
+		unsigned int count;
 		float freq;
-	};
+	} genotypes[3];
+	unsigned int n_invalid_data;
 } GWAS_FREQ;
 
 /* node of a linked list */
@@ -33,16 +43,30 @@ typedef struct Gwas_marker {
 	GWAS_FREQ controls;
 	float OR;	// Odds Ratio
 	float E;	// expected OR
-	float P-value;
-	GWAS_MARKER *next;
+	float Pvalue;
+	struct Gwas_marker *next;
 } GWAS_MARKER;
+
+/* node of another linked list */
+typedef struct Gwas_sample {
+	char family_id[30];
+	char individual_id[30];
+	char father_id[30];
+	char mother_id[30];
+	int sex;
+	int condition;
+	unsigned int n_invalid_markers;
+	struct Gwas_sample *next;
+} GWAS_SAMPLE;
 
 typedef struct Gwas_cohort {
 	GWAS_MARKER *markers;
+	GWAS_SAMPLE *samples;
 	unsigned int n_markers;
 	unsigned int n_samples;
 	unsigned int n_cases;
 	unsigned int n_controls;
+	unsigned int n_missing_phenotype;
 } GWAS_COHORT;
 
 /* operations
@@ -65,7 +89,7 @@ void Assay_cohort(GWAS_COHORT *pcohort);
  *					they are doing because they have run Assay_cohort().
  * postcondition:	Removes from the cohort markers or individuals that fail
  *					some quality control. */
-void QC-filter_cohort(GWAS_COHORT *pcohort);
+void QC_filter_cohort(GWAS_COHORT *pcohort);
 
 /* operation:		Perform a chi-square test of independence in order to find
  *					SNPs associated to the phenotype, using allelic model.
