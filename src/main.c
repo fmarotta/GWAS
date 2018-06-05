@@ -1,5 +1,7 @@
 /*Exploits an ADT interface to perform a genome-wide association study*/
 
+// TODO support output files?
+
 #include "../include/gwas.h"
 #include <argp.h>
 #include <error.h>
@@ -78,8 +80,10 @@ static struct argp argp = { options, parse_opt, args_doc, doc };
 int main(int argc, char *argv[])
 {
 	struct arguments arguments;
+	FILE *ped_file, *map_file;
+	GWAS_COHORT cohort;
 
-	/* Default values. */
+	/* Default arguments values. */
 	arguments.args[0] = "";
 	arguments.args[1] = "";
 	arguments.output_file = "-";
@@ -88,12 +92,24 @@ int main(int argc, char *argv[])
 	 * reflected in arguments. */
 	argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-	/*
-	printf("OUTPUT_FILE = %s\nPED_FILE = %s\nMAP_FILE = %s\n",
-			arguments.output_file,
-			arguments.args[0],
-			arguments.args[1]);
-	*/
+	/* Open ped and map files */
+	if ((ped_file = fopen(arguments.args[0], "r")) == NULL)
+	{
+		fprintf(stderr, "Error: could not open ped file %s.\n",
+				arguments.args[0]);
+		exit(EXIT_FAILURE);
+	}
+	if ((map_file = fopen(arguments.args[1], "r")) == NULL)
+	{
+		fprintf(stderr, "Error: could not open map file %s.\n",
+				arguments.args[0]);
+		exit(EXIT_FAILURE);
+	}
+
+	Initialize_cohort(ped_file, map_file, &cohort);
+
+	Test_association(&cohort, "allelic");
 
 	return 0;
 }
+
