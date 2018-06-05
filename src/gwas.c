@@ -4,6 +4,8 @@
 
 // TODO support counting of genotypes.
 
+// TODO allow the choice of the penetrance model.
+
 #include "../include/gwas.h"
 #include "../utils/io_utils.h"
 #include <ctype.h>
@@ -367,6 +369,7 @@ void Test_association(GWAS_COHORT *pcohort, char *association_model)
 
 		pmarker->Pvalue = gsl_cdf_chisq_Q(pmarker->chi_square, 1);
 
+		/* Adjust with Sidak */
 		pmarker->Pvalue_adjusted = 1 - pow(1 - pmarker->Pvalue, pcohort->n_markers);
 
 		/* logging */

@@ -1,4 +1,6 @@
-/*Exploits an ADT interface to perform a genome-wide association study*/
+/* Exploits an ADT interface to perform a genome-wide association study.
+ * Compile with 'gcc -I/usr/include/gsl/ -lgsl -lblas -lm gwas.c main.c'
+ */
 
 // TODO support output files?
 

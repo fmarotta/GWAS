@@ -5,9 +5,7 @@
 // TODO pass arguments to assay and qc-filter to specify what to assay or what
 // to filter on. Good opportunity to use variable-length stuff.
 
-// TODO give the chance to choose the penetrance model.
-
-// TODO implement covariates, at least sex and perhaps population.
+// TODO implement covariates, at least sex and population.
 
 #ifndef GWAS_H_
 #define GWAS_H_
@@ -34,7 +32,7 @@ typedef struct Gwas_freq {
 
 /* node of a linked list */
 typedef struct Gwas_marker {
-	char id[30];
+	char id[FIELDLEN];
 	unsigned int chr;
 	unsigned long pos;
 	GWAS_FREQ cases;
@@ -49,10 +47,10 @@ typedef struct Gwas_marker {
 
 /* node of another linked list */
 typedef struct Gwas_sample {
-	char family_id[30];
-	char individual_id[30];
-	char father_id[30];
-	char mother_id[30];
+	char family_id[FIELDLEN];
+	char individual_id[FIELDLEN];
+	char father_id[FIELDLEN];
+	char mother_id[FIELDLEN];
 	int sex;
 	int condition;
 	unsigned int n_invalid_markers;
@@ -97,8 +95,8 @@ void QC_filter_cohort(GWAS_COHORT *pcohort);
  * precondition:	pcohort points to an initialized cohort; the association
  * 					model can be: allelic, genotypic, dominant, recessive or
  * 					trend.
- * postcondition:	A chi-square test is performed and the P-value (already
- *					adjusted for multiple testing) is obtained. */
+ * postcondition:	A chi-square test is performed and the P-value is
+ * 					obtained. */
 void Test_association(GWAS_COHORT *pcohort, char *association_model);
 
 /* operation:		Prints a table with the results of the associations.
