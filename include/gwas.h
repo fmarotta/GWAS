@@ -39,10 +39,11 @@ typedef struct Gwas_marker {
 	unsigned long pos;
 	GWAS_FREQ cases;
 	GWAS_FREQ controls;
-	float OR;	// Odds Ratio
-	float RR;	// Relative Risk
-	float chi_square;
-	float Pvalue;
+	double OR;	// Odds Ratio
+	double RR;	// Relative Risk
+	double chi_square;
+	double Pvalue;
+	double Pvalue_adjusted;
 	struct Gwas_marker *next;
 } GWAS_MARKER;
 
@@ -91,9 +92,11 @@ void Assay_cohort(GWAS_COHORT *pcohort);
 void QC_filter_cohort(GWAS_COHORT *pcohort);
 
 /* operation:		Perform a chi-square test of independence in order to find
- *					SNPs associated to the phenotype, using the specified model.
+ *					SNPs associated to the phenotype, using the specified
+ *					model.
  * precondition:	pcohort points to an initialized cohort; the association
- * 					model can be: allelic, genotypic, dominant, or  recessive.
+ * 					model can be: allelic, genotypic, dominant, recessive or
+ * 					trend.
  * postcondition:	A chi-square test is performed and the P-value (already
  *					adjusted for multiple testing) is obtained. */
 void Test_association(GWAS_COHORT *pcohort, char *association_model);

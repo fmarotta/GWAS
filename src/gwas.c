@@ -8,6 +8,7 @@
 #include "../utils/io_utils.h"
 #include <ctype.h>
 #include <gsl/gsl_cdf.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +18,11 @@
 #define LOGFILE stderr
 #endif
 
-static GWAS_MARKER *create_marker(unsigned int, char *, float, unsigned long);
+#ifndef ALPHA
+#define ALPHA 0.05
+#endif
+
+static GWAS_MARKER *create_marker(unsigned int, char *, double, unsigned long);
 static GWAS_SAMPLE *create_sample(char *, char *, char *, char*, int, int);
 static void append_marker(GWAS_MARKER *, GWAS_COHORT *);
 static void append_sample(GWAS_SAMPLE *, GWAS_COHORT *);
@@ -34,7 +39,7 @@ void Initialize_cohort(FILE *ped_file, FILE *map_file, GWAS_COHORT *pcohort)
 
 	unsigned int m_chr;
 	char m_id[30];
-	float m_dist;
+	double m_dist;
 	unsigned long m_pos;
 
 	char family_id[30];
@@ -110,7 +115,7 @@ void Initialize_cohort(FILE *ped_file, FILE *map_file, GWAS_COHORT *pcohort)
 }
 
 static GWAS_MARKER *create_marker(unsigned int m_chr, char *m_id,
-		float m_dist, unsigned long m_pos)
+		double m_dist, unsigned long m_pos)
 {
 	/* NOTE: m_dist (position of the marker in centimorgans) is ignored
 	 * here. */
@@ -322,20 +327,25 @@ static void count_genotypes(char *alleles, int condition, GWAS_MARKER *pmarker)
 // Test_association {{{
 void Test_association(GWAS_COHORT *pcohort, char *association_model)
 {
-	float expected;
-	float disease_prevalence;
-	float CDF;
+	double expected_counts;
+	double disease_prevalence;
 	GWAS_MARKER *pmarker;
 	GWAS_FREQ *group;
+
+	if (strcmp("allelic", association_model))
+	{
+		fprintf(stderr, "Error: currently only the \"allelic\" model is implemented.\n");
+		return;
+	}
 
 	/* Compute a chi squared P-value for each marker. */
 	pmarker = pcohort->markers;
 	while (pmarker != NULL)
 	{
-		pmarker->OR = (float) (pmarker->cases.alleles[1].count * pmarker->controls.alleles[0].count) /
+		pmarker->OR = (double) (pmarker->cases.alleles[1].count * pmarker->controls.alleles[0].count) /
 			(pmarker->cases.alleles[0].count * pmarker->controls.alleles[1].count);
 
-		disease_prevalence = (float) pmarker->cases.alleles[1].count /
+		disease_prevalence = (double) pmarker->cases.alleles[1].count /
 			(pmarker->cases.alleles[1].count + pmarker->controls.alleles[1].count);
 		pmarker->RR = pmarker->OR /
 			(1 - disease_prevalence + disease_prevalence * pmarker->OR);
@@ -346,39 +356,44 @@ void Test_association(GWAS_COHORT *pcohort, char *association_model)
 			group = (i == 0) ? &(pmarker->cases) : &(pmarker->controls);
 			for (int j = 0; j < 2; j++)
 			{
-				expected = (float) ((group->alleles[0].count + group->alleles[1].count) *
+				expected_counts = (double) ((group->alleles[0].count + group->alleles[1].count) *
 					(pmarker->cases.alleles[j].count + pmarker->controls.alleles[j].count)) /
 					(pmarker->cases.alleles[0].count + pmarker->cases.alleles[1].count +
 					pmarker->controls.alleles[0].count + pmarker->controls.alleles[1].count);
-				pmarker->chi_square += ((group->alleles[j].count - expected) * (group->alleles[j].count - expected)) /
-					expected;
+				pmarker->chi_square += pow((double) group->alleles[j].count - expected_counts, 2) /
+					expected_counts;
 			}
 		}
 
 		pmarker->Pvalue = gsl_cdf_chisq_Q(pmarker->chi_square, 1);
 
+		pmarker->Pvalue_adjusted = 1 - pow(1 - pmarker->Pvalue, pcohort->n_markers);
+
 		/* logging */
-		/*
-		if (pmarker->Pvalue < 0.05)
+		if (pmarker->Pvalue_adjusted < 1 - pow(1 - ALPHA, 1.0 / pcohort->n_markers))
 		{
-		printf("marker: %s\n"
+			fprintf(LOGFILE, "\nfound significant marker %s\n"
+				/*
 				"          %c          %c          total\n"
 				"cases:    %-10d %-10d %-10d\n"
 				"controls: %-10d %-10d %-10d\n"
 				"total:    %-10d %-10d %-10d\n\n"
+				*/
 				"OR: %f\n"
 				"RR: %f\n"
 				"X^2: %f\n"
-				"P-value: %e\n\n\n",
+				"P-value: %e\n"
+				"P-value adjusted: %e\n",
 				pmarker->id,
+				/*
 				pmarker->cases.alleles[0].seq, pmarker->cases.alleles[1].seq,
 				pmarker->cases.alleles[0].count, pmarker->cases.alleles[1].count, pmarker->cases.alleles[0].count + pmarker->cases.alleles[1].count,
 				pmarker->controls.alleles[0].count, pmarker->controls.alleles[1].count, pmarker->controls.alleles[0].count + pmarker->controls.alleles[1].count,
 				pmarker->cases.alleles[0].count + pmarker->controls.alleles[0].count, pmarker->cases.alleles[1].seq + pmarker->controls.alleles[1].count,
 					pmarker->cases.alleles[0].count + pmarker->cases.alleles[1].count + pmarker->controls.alleles[0].count + pmarker->controls.alleles[1].count,
-				pmarker->OR, pmarker->RR, pmarker->chi_square, pmarker->Pvalue);
+				*/
+				pmarker->OR, pmarker->RR, pmarker->chi_square, pmarker->Pvalue, pmarker->Pvalue_adjusted);
 		}
-		*/
 
 		pmarker = pmarker->next;
 	}
