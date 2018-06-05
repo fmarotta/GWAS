@@ -7,6 +7,7 @@
 #include "../include/gwas.h"
 #include "../utils/io_utils.h"
 #include <ctype.h>
+#include <gsl/gsl_cdf.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +23,7 @@ static void append_marker(GWAS_MARKER *, GWAS_COHORT *);
 static void append_sample(GWAS_SAMPLE *, GWAS_COHORT *);
 static void get_alleles(FILE *, char *);
 static int count_alleles(char *, int, GWAS_MARKER *);
+static void sort_alleles(GWAS_MARKER *);
 static void count_genotypes(char *, int, GWAS_MARKER *);
 
 // Initialize_cohort {{{
@@ -92,14 +94,11 @@ void Initialize_cohort(FILE *ped_file, FILE *map_file, GWAS_COHORT *pcohort)
 		psample->n_invalid_markers = errors;
 	}
 
-	/* Compute allele frequencies. */
+	/* Standardize alleles order: most frequent in controls first. */
 	pmarker = pcohort->markers;
 	while (pmarker != NULL)
 	{
-		pmarker->cases.alleles[0].freq =
-			(float) pmarker->cases.alleles[0].count / pcohort->n_cases;
-		pmarker->controls.alleles[1].freq =
-			(float) pmarker->controls.alleles[1].count / pcohort->n_controls;
+		sort_alleles(pmarker);
 		pmarker = pmarker->next;
 	}
 
@@ -126,10 +125,8 @@ static GWAS_MARKER *create_marker(unsigned int m_chr, char *m_id,
 	pmarker->pos = m_pos;
 	pmarker->cases.alleles[0].seq = '\0';
 	pmarker->cases.alleles[0].count = 0;
-	pmarker->cases.alleles[0].freq = 0;
 	pmarker->cases.alleles[1].seq = '\0';
 	pmarker->cases.alleles[1].count = 0;
-	pmarker->cases.alleles[1].freq = 0;
 	/*pmarker->OR = 0; // I leave them undefined
 	pmarker->E = 0;
 	pmarker->Pvalue = 0;*/
@@ -278,8 +275,113 @@ static int count_alleles(char *alleles, int condition, GWAS_MARKER *pmarker)
 	return 0;
 }
 
+static void sort_alleles(GWAS_MARKER *pmarker)
+{
+	struct Alleles tmp_allele;
+
+	if (pmarker->controls.alleles[0].count >= pmarker->controls.alleles[1].count)
+	{
+		// all good.
+
+		if (pmarker->controls.alleles[0].seq == pmarker->cases.alleles[0].seq)
+		{
+			// all good.
+		}
+		else
+		{
+			tmp_allele = pmarker->cases.alleles[0];
+			pmarker->cases.alleles[0] = pmarker->cases.alleles[1];
+			pmarker->cases.alleles[1] = tmp_allele;
+		}
+	}
+	else
+	{
+		tmp_allele = pmarker->controls.alleles[0];
+		pmarker->controls.alleles[0] = pmarker->controls.alleles[1];
+		pmarker->controls.alleles[1] = tmp_allele;
+
+		if (pmarker->controls.alleles[0].seq == pmarker->cases.alleles[0].seq)
+		{
+			// all good.
+		}
+		else
+		{
+			tmp_allele = pmarker->cases.alleles[0];
+			pmarker->cases.alleles[0] = pmarker->cases.alleles[1];
+			pmarker->cases.alleles[1] = tmp_allele;
+		}
+	}
+}
+
 static void count_genotypes(char *alleles, int condition, GWAS_MARKER *pmarker)
 {
 	return;
 }
+// }}}
+
+// Test_association {{{
+void Test_association(GWAS_COHORT *pcohort, char *association_model)
+{
+	float expected;
+	float disease_prevalence;
+	float CDF;
+	GWAS_MARKER *pmarker;
+	GWAS_FREQ *group;
+
+	/* Compute a chi squared P-value for each marker. */
+	pmarker = pcohort->markers;
+	while (pmarker != NULL)
+	{
+		pmarker->OR = (float) (pmarker->cases.alleles[1].count * pmarker->controls.alleles[0].count) /
+			(pmarker->cases.alleles[0].count * pmarker->controls.alleles[1].count);
+
+		disease_prevalence = (float) pmarker->cases.alleles[1].count /
+			(pmarker->cases.alleles[1].count + pmarker->controls.alleles[1].count);
+		pmarker->RR = pmarker->OR /
+			(1 - disease_prevalence + disease_prevalence * pmarker->OR);
+
+		pmarker->chi_square = 0;
+		for (int i = 0; i < 2; i++)
+		{
+			group = (i == 0) ? &(pmarker->cases) : &(pmarker->controls);
+			for (int j = 0; j < 2; j++)
+			{
+				expected = (float) ((group->alleles[0].count + group->alleles[1].count) *
+					(pmarker->cases.alleles[j].count + pmarker->controls.alleles[j].count)) /
+					(pmarker->cases.alleles[0].count + pmarker->cases.alleles[1].count +
+					pmarker->controls.alleles[0].count + pmarker->controls.alleles[1].count);
+				pmarker->chi_square += ((group->alleles[j].count - expected) * (group->alleles[j].count - expected)) /
+					expected;
+			}
+		}
+
+		pmarker->Pvalue = gsl_cdf_chisq_Q(pmarker->chi_square, 1);
+
+		/* logging */
+		/*
+		if (pmarker->Pvalue < 0.05)
+		{
+		printf("marker: %s\n"
+				"          %c          %c          total\n"
+				"cases:    %-10d %-10d %-10d\n"
+				"controls: %-10d %-10d %-10d\n"
+				"total:    %-10d %-10d %-10d\n\n"
+				"OR: %f\n"
+				"RR: %f\n"
+				"X^2: %f\n"
+				"P-value: %e\n\n\n",
+				pmarker->id,
+				pmarker->cases.alleles[0].seq, pmarker->cases.alleles[1].seq,
+				pmarker->cases.alleles[0].count, pmarker->cases.alleles[1].count, pmarker->cases.alleles[0].count + pmarker->cases.alleles[1].count,
+				pmarker->controls.alleles[0].count, pmarker->controls.alleles[1].count, pmarker->controls.alleles[0].count + pmarker->controls.alleles[1].count,
+				pmarker->cases.alleles[0].count + pmarker->controls.alleles[0].count, pmarker->cases.alleles[1].seq + pmarker->controls.alleles[1].count,
+					pmarker->cases.alleles[0].count + pmarker->cases.alleles[1].count + pmarker->controls.alleles[0].count + pmarker->controls.alleles[1].count,
+				pmarker->OR, pmarker->RR, pmarker->chi_square, pmarker->Pvalue);
+		}
+		*/
+
+		pmarker = pmarker->next;
+	}
+}
+
 // }}}
