@@ -24,12 +24,10 @@ typedef struct Gwas_freq {
 	struct Alleles {
 		char seq;
 		unsigned int count;
-		float freq;
 	} alleles[2];
 	struct Genotypes {
 		char seq[3]; // i.e. 0/1, 1/1 or 0|0 (if phased, like in VCFs)
 		unsigned int count;
-		float freq;
 	} genotypes[3];
 	unsigned int n_invalid_data;
 } GWAS_FREQ;
@@ -42,7 +40,8 @@ typedef struct Gwas_marker {
 	GWAS_FREQ cases;
 	GWAS_FREQ controls;
 	float OR;	// Odds Ratio
-	float E;	// expected OR
+	float E;	// Expected OR
+	float RR;	// Relative Risk
 	float Pvalue;
 	struct Gwas_marker *next;
 } GWAS_MARKER;
