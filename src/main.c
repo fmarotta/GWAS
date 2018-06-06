@@ -108,9 +108,15 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	/* Perform the GWAS. */
 	Initialize_cohort(ped_file, map_file, &cohort);
 
 	Test_association(&cohort, "allelic");
+
+	/* Execute final dispositions. */
+	Dismiss_cohort(&cohort);
+	fclose(ped_file);
+	fclose(map_file);
 
 	return 0;
 }
