@@ -104,4 +104,9 @@ void Test_association(GWAS_COHORT *pcohort, char *association_model);
  * postcondition:	A txt table is provided for interpretation of results. */
 void Print_results(GWAS_COHORT *pcohort);
 
+/* operation:		Frees memory.
+ * precondition:	pcohort points to an initialized cohort.
+ * postcondition:	All memory is freed, the cohort is emptied. */
+void Dismiss_cohort(GWAS_COHORT *pcohort);
+
 #endif

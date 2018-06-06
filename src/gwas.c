@@ -403,3 +403,35 @@ void Test_association(GWAS_COHORT *pcohort, char *association_model)
 }
 
 // }}}
+
+// Dismiss_cohort {{{
+void Dismiss_cohort(GWAS_COHORT *pcohort)
+{
+	GWAS_MARKER *pmarker, *nextmarker;
+	GWAS_SAMPLE *psample, *nextsample;
+
+	pmarker = pcohort->markers;
+	while (pmarker != NULL)
+	{
+		nextmarker = pmarker->next;
+		free(pmarker);
+		pmarker = nextmarker;
+	}
+
+	psample = pcohort->samples;
+	while (psample != NULL)
+	{
+		nextsample = psample->next;
+		free(psample);
+		psample = nextsample;
+	}
+
+	pcohort->n_markers = 0;
+	pcohort->n_samples = 0;
+	pcohort->n_cases = 0;
+	pcohort->n_controls = 0;
+	pcohort->n_missing_phenotype = 0;
+	pcohort->markers = NULL;
+	pcohort->samples = NULL;
+}
+// }}}
